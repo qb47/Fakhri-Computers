@@ -1,0 +1,10 @@
+{
+  "description": "Connect with a personal sourcing service for second-hand laptops and monitors, tailored to your needs with indicative pricing and WhatsApp support.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
