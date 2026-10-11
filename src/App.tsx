@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useStore } from "./data/StoreContext";
+import { waLink } from "./lib/wa";
+import type {
+  AdminTab, BulkEnquiry, CondId, LeadStatus, Machine, Reservation, Status,
+} from "./lib/types";
 
 /* ───────────────────────── constants ───────────────────────── */
 
+/* Defaults only. The live values come from the `settings` table (admin →
+   Settings) and are applied at runtime; see src/lib/wa.ts. */
 const WA_NUMBER = "971555755427";
 const WA_DISPLAY = "+971 55 575 7427";
 const NOTE = "Indicative. Final price confirmed on your WhatsApp shortlist, valid 48 hours.";
-
-const waLink = (text: string) => `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(text)}`;
 
 /* ───────────────────────── icons ───────────────────────── */
 
@@ -91,38 +96,11 @@ const MUSTS = [
   { id: "touch", label: "Touchscreen" },
 ];
 
-type Machine = {
-  id: string; name: string; year: number; cpu: string; ram: number; ssd: number; gpu: string | null;
-  screen: number; kg: number; bat: number; numpad: boolean; touch: boolean; uses: string[];
-  low: number; high: number; grade: string; hue: number;
-};
-
-const CATALOG: Machine[] = [
-  { id: "m1", name: "Dell Latitude 3510", year: 2020, cpu: "Core i3-10110U", ram: 8, ssd: 256, gpu: null, screen: 15.6, kg: 1.8, bat: 6, numpad: true, touch: false, uses: ["everyday", "study"], low: 800, high: 1100, grade: "B", hue: 210 },
-  { id: "m2", name: "Dell Latitude 7480", year: 2018, cpu: "Core i5-7300U", ram: 8, ssd: 256, gpu: null, screen: 14, kg: 1.5, bat: 8, numpad: false, touch: false, uses: ["everyday", "study", "business"], low: 900, high: 1300, grade: "B", hue: 200 },
-  { id: "m3", name: "Dell Latitude 5420", year: 2021, cpu: "Core i5-1135G7", ram: 8, ssd: 256, gpu: null, screen: 14, kg: 1.5, bat: 9, numpad: false, touch: false, uses: ["everyday", "study", "business"], low: 1100, high: 1500, grade: "A-", hue: 215 },
-  { id: "m4", name: "HP Pavilion 15", year: 2021, cpu: "Core i5-1135G7", ram: 8, ssd: 512, gpu: null, screen: 15.6, kg: 1.7, bat: 7, numpad: true, touch: false, uses: ["everyday", "study"], low: 1300, high: 1800, grade: "A-", hue: 190 },
-  { id: "m5", name: "Lenovo IdeaPad Flex 5", year: 2021, cpu: "Ryzen 5 5500U", ram: 16, ssd: 512, gpu: null, screen: 14, kg: 1.5, bat: 10, numpad: false, touch: true, uses: ["study", "everyday", "design"], low: 1600, high: 2200, grade: "A", hue: 270 },
-  { id: "m6", name: "Lenovo ThinkPad E15 Gen 3", year: 2021, cpu: "Ryzen 5 5500U", ram: 16, ssd: 512, gpu: null, screen: 15.6, kg: 1.7, bat: 9, numpad: true, touch: false, uses: ["business", "study", "programming"], low: 1700, high: 2200, grade: "A-", hue: 220 },
-  { id: "m7", name: "HP EliteBook 840 G7", year: 2020, cpu: "Core i7-10610U", ram: 16, ssd: 512, gpu: null, screen: 14, kg: 1.4, bat: 10, numpad: false, touch: false, uses: ["business", "programming"], low: 1700, high: 2300, grade: "A", hue: 205 },
-  { id: "m8", name: "Lenovo ThinkPad T14 Gen 2", year: 2021, cpu: "Core i5-1145G7", ram: 16, ssd: 512, gpu: null, screen: 14, kg: 1.4, bat: 10, numpad: false, touch: false, uses: ["business", "programming", "everyday"], low: 1900, high: 2500, grade: "A", hue: 225 },
-  { id: "m9", name: "Dell Latitude 5530", year: 2022, cpu: "Core i5-1235U", ram: 16, ssd: 512, gpu: null, screen: 15.6, kg: 1.6, bat: 10, numpad: true, touch: false, uses: ["business", "everyday", "programming"], low: 2200, high: 2900, grade: "A", hue: 212 },
-  { id: "m10", name: "MacBook Air M1", year: 2020, cpu: "Apple M1", ram: 8, ssd: 256, gpu: null, screen: 13.3, kg: 1.29, bat: 15, numpad: false, touch: false, uses: ["study", "everyday", "design"], low: 2300, high: 3000, grade: "A", hue: 240 },
-  { id: "m11", name: "Asus TUF Gaming F15", year: 2020, cpu: "Core i5-10300H", ram: 16, ssd: 512, gpu: "GTX 1650", screen: 15.6, kg: 2.3, bat: 5, numpad: true, touch: false, uses: ["gaming"], low: 2600, high: 3400, grade: "B+", hue: 20 },
-  { id: "m12", name: "Acer Nitro 5", year: 2021, cpu: "Core i5-11400H", ram: 16, ssd: 512, gpu: "RTX 3050", screen: 15.6, kg: 2.2, bat: 5, numpad: true, touch: false, uses: ["gaming", "design"], low: 3000, high: 3800, grade: "A-", hue: 5 },
-  { id: "m13", name: "Lenovo Legion 5", year: 2021, cpu: "Ryzen 7 5800H", ram: 16, ssd: 512, gpu: "RTX 3060", screen: 15.6, kg: 2.4, bat: 6, numpad: true, touch: false, uses: ["gaming", "design", "programming"], low: 3800, high: 4800, grade: "A", hue: 280 },
-  { id: "m14", name: "ThinkPad P15v Gen 1", year: 2020, cpu: "Core i7-10750H", ram: 32, ssd: 1024, gpu: "Quadro T1000", screen: 15.6, kg: 2.2, bat: 6, numpad: true, touch: false, uses: ["design", "programming"], low: 3900, high: 5000, grade: "A-", hue: 230 },
-  { id: "m15", name: "Dell XPS 15 9510", year: 2021, cpu: "Core i7-11800H", ram: 32, ssd: 1024, gpu: "RTX 3050 Ti", screen: 15.6, kg: 1.9, bat: 10, numpad: false, touch: true, uses: ["design", "programming"], low: 4600, high: 5800, grade: "A", hue: 195 },
-  { id: "m16", name: "MacBook Pro 14 M1 Pro", year: 2021, cpu: "Apple M1 Pro", ram: 16, ssd: 512, gpu: null, screen: 14.2, kg: 1.6, bat: 15, numpad: false, touch: false, uses: ["design", "programming"], low: 5500, high: 6800, grade: "A", hue: 250 },
-  { id: "m17", name: "HP ZBook Fury 17 G7", year: 2020, cpu: "Core i7-10850H", ram: 32, ssd: 1024, gpu: "Quadro RTX 3000", screen: 17.3, kg: 2.8, bat: 4, numpad: true, touch: false, uses: ["design"], low: 5200, high: 6500, grade: "B+", hue: 160 },
-];
-
-const RECENT: { id: string; status: "Available" | "Sold"; note: string }[] = [
-  { id: "m8", status: "Available", note: "Listed 2 days ago" },
-  { id: "m12", status: "Sold", note: "Sourced in 3 days" },
-  { id: "m10", status: "Available", note: "Listed today" },
-  { id: "m3", status: "Sold", note: "Sourced in 1 day" },
-];
+/* The catalogue, stock statuses and "recently sourced" list used to be frozen
+   here as module constants. They now live in the `machines` table and are read
+   through the store (useStore), so the dashboard and the storefront share one
+   source of truth. See src/lib/seed.ts for the sample data used before Supabase
+   is connected. */
 
 const CATEGORIES = {
   laptops: {
@@ -263,8 +241,8 @@ function score(m: Machine, a: Answers) {
 
 const mid = (m: Machine) => (m.low + m.high) / 2;
 
-function pickExamples(a: Answers) {
-  const ranked = [...CATALOG].sort((x, y) => score(y, a) - score(x, a));
+function pickExamples(a: Answers, catalog: Machine[]) {
+  const ranked = [...catalog].sort((x, y) => score(y, a) - score(x, a));
   const closest = ranked[0];
   const rest = ranked.slice(1, 9);
   const cheaper = rest.filter((m) => mid(m) < mid(closest));
@@ -366,11 +344,14 @@ function PriceNote({ className = "" }: { className?: string }) {
   return <p className={`text-xs leading-relaxed text-mute ${className}`}>{NOTE}</p>;
 }
 
-function Badge({ status }: { status: "Available" | "Sold" }) {
-  const ok = status === "Available";
+function Badge({ status }: { status: Status }) {
+  const tone = status === "Available" ? "bg-ok-soft text-ok"
+    : status === "Sold" ? "bg-slate-200 text-slate-600"
+    : "bg-accent/15 text-[#9a5f00]";
+  const dot = status === "Available" ? "bg-ok" : status === "Sold" ? "bg-slate-500" : "bg-accent-dark";
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${ok ? "bg-ok-soft text-ok" : "bg-slate-200 text-slate-600"}`}>
-      <span className={`size-1.5 rounded-full ${ok ? "bg-ok" : "bg-slate-500"}`} />
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tone}`}>
+      <span className={`size-1.5 rounded-full ${dot}`} />
       {status}
     </span>
   );
@@ -495,6 +476,7 @@ function Header({ go }: { go: (s: Screen) => void }) {
 }
 
 function Footer({ go }: { go: (s: Screen) => void }) {
+  const { settings } = useStore();
   return (
     <footer id="contact" className="bg-navy text-white">
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-12 md:grid-cols-[1.2fr_1fr_1fr] md:px-8 md:py-16">
@@ -505,17 +487,18 @@ function Footer({ go }: { go: (s: Screen) => void }) {
           </div>
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-white/70">Second-hand and refurbished laptops, monitors and accessories. Personally sourced for you, inspected by you before you pay.</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row md:flex-col lg:flex-row">
-            <Btn href={waLink("Hi Fakhri Computers, I have a question.")} target="_blank"><WaIcon /> WhatsApp {WA_DISPLAY}</Btn>
+            <Btn href={waLink("Hi Fakhri Computers, I have a question.")} target="_blank"><WaIcon /> WhatsApp {settings.waDisplay || WA_DISPLAY}</Btn>
           </div>
         </div>
         <div className="space-y-6 text-sm">
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-accent">Visit</h4>
-            <p className="mt-2 text-white/80">Shop 12, Sample Plaza<br />Al Rigga Road, Deira, Dubai<br /><span className="text-white/50">(Sample address for prototype)</span></p>
+            <p className="mt-2 whitespace-pre-line text-white/80">{settings.address}</p>
           </div>
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-accent">Hours</h4>
-            <p className="mt-2 text-white/80">Sat – Thu: 10:00 – 21:00<br />Friday: 16:00 – 21:00<br /><span className="text-white/50">WhatsApp replies within the hour in opening times</span></p>
+            <p className="mt-2 whitespace-pre-line text-white/80">{settings.hours}</p>
+            <p className="mt-2 text-white/50">WhatsApp replies within the hour in opening times</p>
           </div>
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-accent">Explore</h4>
@@ -531,7 +514,7 @@ function Footer({ go }: { go: (s: Screen) => void }) {
           <div className="mt-2"><MapBox /></div>
         </div>
       </div>
-      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/50">© 2026 Fakhri Computers & Accessories. Prototype with sample data. Prices are indicative ranges only.</div>
+      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-white/50">© 2026 Fakhri Computers & Accessories. Prices are indicative ranges only.</div>
     </footer>
   );
 }
@@ -539,6 +522,8 @@ function Footer({ go }: { go: (s: Screen) => void }) {
 /* ───────────────────────── home ───────────────────────── */
 
 function Home({ go, openCat, openMachine }: { go: (s: Screen) => void; openCat: (c: CatKey) => void; openMachine: (id: string, status: "Available" | "Sold") => void }) {
+  const { machines } = useStore();
+  const recent = useMemo(() => machines.filter((m) => m.listed && m.status !== "Draft").slice(0, 4), [machines]);
   const trust = [
     { icon: "shield", t: "Tested before sale", d: "Every unit is run through a full check" },
     { icon: "camera", t: "Real photos of the real unit", d: "No stock images, ever" },
@@ -626,19 +611,16 @@ function Home({ go, openCat, openMachine }: { go: (s: Screen) => void; openCat: 
             <Btn variant="ghost" onClick={() => openCat("laptops")} className="!min-h-11 shrink-0">See all <Icon name="arrow" className="size-4" /></Btn>
           </div>
           <div className="no-scrollbar -mx-5 mt-7 flex snap-x gap-4 overflow-x-auto px-5 pb-2 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
-            {RECENT.map((r) => {
-              const m = CATALOG.find((x) => x.id === r.id)!;
-              return (
-                <button key={r.id} onClick={() => openMachine(r.id, r.status)} className="w-[260px] shrink-0 snap-start rounded-xl border border-line bg-paper p-3 text-left transition hover:border-navy/40 hover:shadow-md md:w-auto">
-                  <LaptopArt hue={m.hue} sold={r.status === "Sold"} />
-                  <div className="mt-3 flex items-center justify-between gap-2"><Badge status={r.status} /><span className="text-xs text-mute">{r.note}</span></div>
-                  <h3 className="mt-2 font-semibold text-navy">{m.name}</h3>
-                  <p className="text-sm text-mute">{m.cpu} · {m.ram}GB · {m.ssd >= 1024 ? "1TB" : `${m.ssd}GB`} SSD</p>
-                  <p className="mt-2 text-sm font-semibold text-navy">AED {aed(m.low)} – {aed(m.high)}</p>
-                  <p className="mt-0.5 text-[11px] text-mute">Indicative range, sample listing</p>
-                </button>
-              );
-            })}
+            {recent.map((m) => (
+              <button key={m.id} onClick={() => openMachine(m.id, m.status === "Draft" ? "Available" : m.status)} className="w-[260px] shrink-0 snap-start rounded-xl border border-line bg-paper p-3 text-left transition hover:border-navy/40 hover:shadow-md md:w-auto">
+                <LaptopArt hue={m.hue} sold={m.status === "Sold"} />
+                <div className="mt-3 flex items-center justify-between gap-2"><Badge status={m.status} /><span className="text-xs text-mute">{condLabel(m.cond)}</span></div>
+                <h3 className="mt-2 font-semibold text-navy">{m.name}</h3>
+                <p className="text-sm text-mute">{m.cpu} · {m.ram}GB · {m.ssd >= 1024 ? "1TB" : `${m.ssd}GB`} SSD</p>
+                <p className="mt-2 text-sm font-semibold text-navy">AED {aed(m.low)} – {aed(m.high)}</p>
+                <p className="mt-0.5 text-[11px] text-mute">Indicative range, sample listing</p>
+              </button>
+            ))}
           </div>
           <p className="mt-4 text-xs text-mute">{NOTE}</p>
         </div>
@@ -690,6 +672,7 @@ function Home({ go, openCat, openMachine }: { go: (s: Screen) => void; openCat: 
 
 function CategoryPage({ cat, go, openCat, openMachine }: { cat: CatKey; go: (s: Screen) => void; openCat: (c: CatKey) => void; openMachine: (id: string, status?: "Available" | "Sold") => void }) {
   const c = CATEGORIES[cat];
+  const { machines } = useStore();
   return (
     <div className="rise mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-14">
       <Btn variant="ghost" onClick={() => go("home")} className="-ml-3 !min-h-11 !px-3"><Icon name="back" className="size-4" /> Home</Btn>
@@ -707,7 +690,7 @@ function CategoryPage({ cat, go, openCat, openMachine }: { cat: CatKey; go: (s: 
       {cat === "laptops" ? (
         <>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {CATALOG.slice(0, 9).map((m) => (
+            {machines.slice(0, 9).map((m) => (
               <button key={m.id} onClick={() => openMachine(m.id)} className="rounded-xl border border-line bg-white p-3 text-left transition hover:border-navy/40 hover:shadow-md">
                 <LaptopArt hue={m.hue} />
                 <h3 className="mt-3 font-semibold text-navy">{m.name}</h3>
@@ -869,8 +852,9 @@ function Quiz({ answers, setAnswers, step, setStep, go, finish }: {
 function Result({ answers, go, openMachine, editAnswers, onSend }: {
   answers: Answers; go: (s: Screen) => void; openMachine: (id: string) => void; editAnswers: () => void; onSend: () => void;
 }) {
+  const { machines } = useStore();
   const p = useMemo(() => buildProfile(answers), [answers]);
-  const ex = useMemo(() => pickExamples(answers), [answers]);
+  const ex = useMemo(() => pickExamples(answers, machines), [answers, machines]);
   const closest = ex[0].m;
   const bd = lbl(BUDGETS, answers.budget);
   const fitMsg = {
@@ -990,27 +974,12 @@ function Confirm({ answers, go, editAnswers }: { answers: Answers; go: (s: Scree
 
 /* ───────────────────────── extended data ───────────────────────── */
 
-type Status = "Available" | "Sold";
-type CondId = "budget" | "good" | "new";
-
 const brandOf = (m: Machine) => (/^MacBook/.test(m.name) ? "Apple" : /^ThinkPad/.test(m.name) ? "Lenovo" : m.name.split(" ")[0]);
 
-const UNITS: Record<string, { status: Status; cond: CondId }> = {
-  m2: { status: "Available", cond: "budget" },
-  m3: { status: "Sold", cond: "good" },
-  m6: { status: "Available", cond: "good" },
-  m7: { status: "Sold", cond: "good" },
-  m8: { status: "Available", cond: "new" },
-  m9: { status: "Available", cond: "good" },
-  m10: { status: "Available", cond: "good" },
-  m11: { status: "Available", cond: "budget" },
-  m12: { status: "Sold", cond: "good" },
-  m13: { status: "Available", cond: "new" },
-  m14: { status: "Sold", cond: "good" },
-  m15: { status: "Available", cond: "new" },
-};
-const LISTED = ["m2", "m3", "m6", "m7", "m8", "m9", "m10", "m11", "m12", "m13", "m14", "m15"];
-const unitOf = (id: string) => UNITS[id] ?? { status: "Available" as Status, cond: "good" as CondId };
+/* Stock status and condition used to live in a separate UNITS map keyed by
+   machine id. They are now columns on the machine row itself, so these helpers
+   are gone — read `m.status` and `m.cond` directly. */
+
 const condLabel = (c: CondId) => CONDS.find((x) => x.id === c)!.label;
 
 const GRADES: Record<string, { title: string; text: string }> = {
@@ -1224,13 +1193,12 @@ const LAP0: LapFilters = { use: "all", brand: "all", size: "all", cond: "all", a
 const sizeBucket = (s: number) => (s <= 14.2 ? "s" : s < 17 ? "m" : "l");
 
 function LaptopCard({ m, onOpen }: { m: Machine; onOpen: () => void }) {
-  const u = unitOf(m.id);
-  const sold = u.status === "Sold";
+  const sold = m.status === "Sold";
   return (
     <article className={`flex flex-col rounded-xl border p-3 transition ${sold ? "border-line bg-slate-100" : "border-line bg-white hover:border-navy/40 hover:shadow-md"}`}>
       <button onClick={onOpen} className={`text-left ${sold ? "opacity-70" : ""}`} aria-label={`View ${m.name}`}>
         <LaptopArt hue={m.hue} sold={sold} />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><Badge status={u.status} /><Chip>{condLabel(u.cond)}</Chip></div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><Badge status={m.status} /><Chip>{condLabel(m.cond)}</Chip></div>
         <h3 className={`mt-2 text-[17px] font-semibold ${sold ? "text-slate-500" : "text-navy"}`}>{m.name}</h3>
         <ul className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[13px] text-mute">
           <li>{m.cpu}</li><li>{m.ram}GB RAM</li><li>{m.ssd >= 1024 ? "1TB" : `${m.ssd}GB`} SSD</li><li>{m.screen}" screen</li>
@@ -1250,14 +1218,14 @@ function LaptopCard({ m, onOpen }: { m: Machine; onOpen: () => void }) {
 }
 
 function RecentPage({ f, setF, openUnit, go }: { f: LapFilters; setF: (f: LapFilters) => void; openUnit: (id: string) => void; go: (s: Screen) => void }) {
-  const list = LISTED.map((id) => CATALOG.find((m) => m.id === id)!).filter((m) => {
-    const u = unitOf(m.id);
-    return (f.use === "all" || m.uses.includes(f.use)) && (f.brand === "all" || brandOf(m) === f.brand) && (f.size === "all" || sizeBucket(m.screen) === f.size)
-      && (f.cond === "all" || u.cond === f.cond) && (f.avail === "all" || u.status === f.avail);
-  });
+  const { machines } = useStore();
+  const listed = useMemo(() => machines.filter((m) => m.listed && m.status !== "Draft"), [machines]);
+  const list = listed.filter((m) =>
+    (f.use === "all" || m.uses.includes(f.use)) && (f.brand === "all" || brandOf(m) === f.brand) && (f.size === "all" || sizeBucket(m.screen) === f.size)
+    && (f.cond === "all" || m.cond === f.cond) && (f.avail === "all" || m.status === f.avail));
   const active = Object.values(f).filter((v) => v !== "all").length;
   const set = (k: keyof LapFilters) => (v: string) => setF({ ...f, [k]: v });
-  const brands = [...new Set(LISTED.map((id) => brandOf(CATALOG.find((m) => m.id === id)!)))].map((b) => ({ id: b, label: b }));
+  const brands = [...new Set(listed.map((m) => brandOf(m)))].map((b) => ({ id: b, label: b }));
   return (
     <div className="rise mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-14">
       <PageHead eyebrow="Recently sourced" title="Laptops we've found for clients" intro="Sample examples of real sourcing work. Stock moves fast, so sold machines stay visible to show what's possible. Ask and we'll find something similar." />
@@ -1270,7 +1238,7 @@ function RecentPage({ f, setF, openUnit, go }: { f: LapFilters; setF: (f: LapFil
           <ChipGroup label="Availability" value={f.avail} onChange={set("avail")} options={[{ id: "Available", label: "Available" }, { id: "Sold", label: "Sold" }]} />
         </FilterShell>
         <div>
-          <p className="mb-3 text-sm text-mute" aria-live="polite">Showing {list.length} of {LISTED.length} laptops</p>
+          <p className="mb-3 text-sm text-mute" aria-live="polite">Showing {list.length} of {listed.length} laptops</p>
           {list.length ? (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{list.map((m) => <LaptopCard key={m.id} m={m} onOpen={() => openUnit(m.id)} />)}</div>
           ) : <EmptyState what="laptops" onClear={() => setF(LAP0)} />}
@@ -1310,7 +1278,7 @@ function Toggle({ on, onChange, disabled, label }: { on: boolean; onChange: (v: 
 function LaptopDetail({ m, held, onBack, onReserve, onViewHeld, go }: {
   m: Machine; held: boolean; onBack: () => void; onReserve: (o: { likeNew: boolean; addons: string[] }) => void; onViewHeld: () => void; go: (s: Screen) => void;
 }) {
-  const u = unitOf(m.id);
+  const u = m; // status and condition now live on the machine row itself
   const sold = u.status === "Sold";
   const [view, setView] = useState(0);
   const [likeNew, setLikeNew] = useState(u.cond === "new");
@@ -1438,8 +1406,6 @@ function GalleryThumb({ hue, view }: { hue: number; view: number }) {
 
 /* ───────────────────────── reserve flow ───────────────────────── */
 
-type Reservation = { id: string; name: string; phone: string; day: string; slot: string; until: number; likeNew: boolean; addons: string[] };
-
 const SLOTS = ["Morning (10:00 – 13:00)", "Afternoon (13:00 – 17:00)", "Evening (17:00 – 21:00)"];
 function nextDays() {
   return Array.from({ length: 4 }, (_, i) => {
@@ -1506,10 +1472,12 @@ function ReserveModal({ m, opts, onClose, onDone }: { m: Machine; opts: { likeNe
 const pad = (n: number) => String(n).padStart(2, "0");
 
 function ReservedPage({ r, go, openUnit, release }: { r: Reservation; go: (s: Screen) => void; openUnit: (id: string) => void; release: () => void }) {
-  const m = CATALOG.find((x) => x.id === r.id)!;
+  const { machines } = useStore();
+  const m = machines.find((x) => x.id === r.id);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(t); }, []);
   const left = Math.max(0, r.until - now);
+  if (!m) return null;
   const hh = Math.floor(left / 3600000), mm = Math.floor((left % 3600000) / 60000), ss = Math.floor((left % 60000) / 1000);
   const until = new Date(r.until).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const extras = [r.likeNew && "Like-new package (price on request)", ...ADDONS.filter((a) => r.addons.includes(a.id)).map((a) => a.label)].filter(Boolean) as string[];
@@ -1795,7 +1763,7 @@ function AboutPage({ go }: { go: (s: Screen) => void }) {
   );
 }
 
-function BulkPage({ onSubmit }: { onSubmit?: (enquiry: BulkEnquiry) => void }) {
+function BulkPage({ onSubmit }: { onSubmit?: (enquiry: Omit<BulkEnquiry, "id" | "timestamp" | "status">) => void }) {
   const blank = { company: "", name: "", phone: "", qty: "", use: "", band: "", delivery: "", emirate: "" };
   const [f, setF] = useState(blank);
   const [touched, setTouched] = useState(false);
@@ -1816,8 +1784,7 @@ function BulkPage({ onSubmit }: { onSubmit?: (enquiry: BulkEnquiry) => void }) {
     ev.preventDefault();
     setTouched(true);
     if (Object.values(e).every((x) => !x)) {
-      const newEnquiry: BulkEnquiry = {
-        id: `B${String(Date.now()).slice(-6)}`,
+      onSubmit?.({
         company: f.company.trim(),
         name: f.name.trim(),
         phone: f.phone.trim(),
@@ -1826,10 +1793,7 @@ function BulkPage({ onSubmit }: { onSubmit?: (enquiry: BulkEnquiry) => void }) {
         band: f.band,
         delivery: f.delivery === "yes" ? "Yes" : "No",
         emirate: f.emirate || "N/A",
-        timestamp: Date.now(),
-        status: "new",
-      };
-      onSubmit?.(newEnquiry);
+      });
       setSent(true);
     }
   };
@@ -1898,10 +1862,39 @@ function BulkPage({ onSubmit }: { onSubmit?: (enquiry: BulkEnquiry) => void }) {
 }
 
 function ContactPage() {
+  const { submitContact, settings } = useStore();
   const topics = ["A laptop", "A monitor", "Accessories", "A bulk order", "Warranty or returns"];
+  const blank = { name: "", phone: "", email: "", message: "" };
+  const [f, setF] = useState(blank);
+  const [touched, setTouched] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const e = {
+    name: f.name.trim().length < 2 ? "Enter your name." : "",
+    phone: validatePhone(f.phone),
+    message: f.message.trim().length < 5 ? "Tell us a little more." : "",
+  };
+  const bad = (k: keyof typeof e) => touched && !!e[k];
+  const inp = (b: boolean) => `mt-1.5 min-h-[52px] w-full rounded-xl border-2 bg-white px-4 text-base outline-none focus:border-navy ${b ? "border-red-500" : "border-line"}`;
+  const Err = ({ k }: { k: keyof typeof e }) => (bad(k) ? <p className="mt-1 text-sm text-red-600">{e[k]}</p> : null);
+
+  const submit = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    setTouched(true);
+    if (!Object.values(e).every((x) => !x)) return;
+    setBusy(true);
+    try {
+      await submitContact({ name: f.name.trim(), phone: f.phone.trim(), email: f.email.trim(), message: f.message.trim() });
+      setSent(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="rise mx-auto max-w-6xl px-5 py-8 md:px-8 md:py-14">
-      <PageHead eyebrow="Contact" title="WhatsApp is the fastest way" intro="Most clients message us from a link. We reply within the hour during opening times." />
+      <PageHead eyebrow="Contact" title="WhatsApp is the fastest way" intro="Most clients message us from a link. We reply within the hour during opening times. Prefer to write it out? Use the form and we'll come back to you." />
       <div className="mt-8 grid gap-6 md:grid-cols-2 md:gap-10">
         <div className="space-y-4">
           <div className="rounded-2xl bg-navy p-6 text-white">
@@ -1909,72 +1902,66 @@ function ContactPage() {
             <div className="mt-3 flex flex-wrap gap-2">
               {topics.map((t) => <a key={t} href={waLink(`Hi Fakhri Computers, I have a question about: ${t.toLowerCase()}.`)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-full bg-white/10 px-4 text-sm font-medium hover:bg-white/20">{t}</a>)}
             </div>
-            <Btn href={waLink("Hi Fakhri Computers, I have a question.")} target="_blank" className="mt-5 w-full"><WaIcon /> WhatsApp {WA_DISPLAY}</Btn>
+            <Btn href={waLink("Hi Fakhri Computers, I have a question.")} target="_blank" className="mt-5 w-full"><WaIcon /> WhatsApp {settings.waDisplay || WA_DISPLAY}</Btn>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl bg-white p-5 ring-1 ring-line"><p className="text-xs font-bold uppercase tracking-wider text-mute">Phone</p><a href={`tel:+${WA_NUMBER}`} className="mt-1 inline-flex min-h-11 items-center text-lg font-semibold text-navy">{WA_DISPLAY}</a></div>
-            <div className="rounded-xl bg-white p-5 ring-1 ring-line"><p className="text-xs font-bold uppercase tracking-wider text-mute">Hours</p><p className="mt-1 text-[15px] text-slate-700">Sat – Thu: 10:00 – 21:00<br />Friday: 16:00 – 21:00</p></div>
+            <div className="rounded-xl bg-white p-5 ring-1 ring-line"><p className="text-xs font-bold uppercase tracking-wider text-mute">Phone</p><a href={`tel:+${(settings.waNumber || WA_NUMBER).replace(/\D/g, "")}`} className="mt-1 inline-flex min-h-11 items-center text-lg font-semibold text-navy">{settings.waDisplay || WA_DISPLAY}</a></div>
+            <div className="rounded-xl bg-white p-5 ring-1 ring-line"><p className="text-xs font-bold uppercase tracking-wider text-mute">Hours</p><p className="mt-1 whitespace-pre-line text-[15px] text-slate-700">{settings.hours}</p></div>
           </div>
-          <div className="rounded-xl bg-white p-5 ring-1 ring-line"><p className="text-xs font-bold uppercase tracking-wider text-mute">Address</p><p className="mt-1 text-[15px] text-slate-700">Shop 12, Sample Plaza, Al Rigga Road, Deira, Dubai</p><p className="text-xs text-mute">Sample address</p></div>
+          <div className="rounded-xl bg-white p-5 ring-1 ring-line"><p className="text-xs font-bold uppercase tracking-wider text-mute">Address</p><p className="mt-1 text-[15px] text-slate-700">{settings.address}</p></div>
         </div>
-        <MapBox className="h-72 md:h-full md:min-h-[360px]" />
+
+        <div className="space-y-6">
+          {sent ? (
+            <div className="rounded-2xl border border-line bg-white p-8 text-center">
+              <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-ok text-white"><Icon name="check" className="size-8" sw={3} /></span>
+              <h2 className="mt-5 text-2xl font-extrabold text-navy">Message received</h2>
+              <p className="mt-2 text-slate-600">Thanks, {f.name.split(" ")[0]}. We'll reply to {f.phone} on WhatsApp.</p>
+              <Btn variant="secondary" onClick={() => { setF(blank); setTouched(false); setSent(false); }} className="mt-6">Send another</Btn>
+            </div>
+          ) : (
+            <form onSubmit={submit} noValidate className="space-y-4 rounded-2xl border border-line bg-white p-5 md:p-7">
+              <h2 className="text-xl font-bold text-navy">Send us a message</h2>
+              <div><label htmlFor="cn" className="text-sm font-semibold text-navy">Your name</label><input id="cn" value={f.name} onChange={(x) => setF({ ...f, name: x.target.value })} autoComplete="name" className={inp(bad("name"))} /><Err k="name" /></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div><label htmlFor="cp" className="text-sm font-semibold text-navy">WhatsApp number</label><input id="cp" type="tel" inputMode="tel" value={f.phone} onChange={(x) => setF({ ...f, phone: x.target.value })} placeholder="055 123 4567" autoComplete="tel" className={inp(bad("phone"))} /><Err k="phone" /></div>
+                <div><label htmlFor="ce" className="text-sm font-semibold text-navy">Email (optional)</label><input id="ce" type="email" value={f.email} onChange={(x) => setF({ ...f, email: x.target.value })} autoComplete="email" className={inp(false)} /></div>
+              </div>
+              <div><label htmlFor="cm" className="text-sm font-semibold text-navy">Message</label><textarea id="cm" rows={5} value={f.message} onChange={(x) => setF({ ...f, message: x.target.value })} className={`mt-1.5 w-full rounded-xl border-2 bg-white px-4 py-3 text-base outline-none focus:border-navy ${bad("message") ? "border-red-500" : "border-line"}`} /><Err k="message" /></div>
+              <Btn type="submit" disabled={busy} className="w-full">{busy ? "Sending…" : "Send message"}</Btn>
+            </form>
+          )}
+          <MapBox className="h-72 md:min-h-[300px]" />
+        </div>
       </div>
     </div>
   );
 }
 
-/* ───────────────────────── admin types and data ───────────────────────── */
+/* ───────────────────────── admin ───────────────────────── */
 
-type AdminTab = "leads" | "inventory" | "reservations" | "bulk" | "settings";
-type LeadStatus = "new" | "contacted" | "closed";
-
-type Lead = {
-  id: string; name: string; phone: string; use: string; budget: string;
-  port: string; cond: string; musts: string[]; timestamp: number; status: LeadStatus;
-};
-
-type BulkEnquiry = {
-  id: string;
-  company: string;
-  name: string;
-  phone: string;
-  qty: number;
-  use: string;
-  band: string;
-  delivery: string;
-  emirate: string;
-  timestamp: number;
-  status: "new" | "contacted" | "closed";
-};
-
-type SiteSettings = {
-  waNumber: string; waDisplay: string; address: string; hours: string;
-  mode: "sample" | "live";
-};
-
-const ADMIN_CREDS = { username: "admin", password: "fakhri2024" };
-
-const SAMPLE_LEADS: Lead[] = [
-  { id: "L001", name: "Ahmed Hassan", phone: "+971 55 123 4567", use: "business", budget: "AED 2,500 – 4,000", port: "balanced", cond: "good", musts: ["ssd", "ram"], timestamp: Date.now() - 3600000, status: "new" },
-  { id: "L002", name: "Sara Al-Mansoori", phone: "+971 50 987 6543", use: "study", budget: "AED 1,500 – 2,500", port: "light", cond: "budget", musts: ["battery"], timestamp: Date.now() - 7200000, status: "contacted" },
-  { id: "L003", name: "Omar Khalid", phone: "+971 56 456 7890", use: "gaming", budget: "AED 4,000 – 6,000", port: "desk", cond: "good", musts: ["gpu", "ssd"], timestamp: Date.now() - 86400000, status: "new" },
-];
+/* Types now come from src/lib/types.ts, and the data comes from the store
+   (useStore), which reads and writes Supabase. The old hardcoded credentials
+   and sample leads are gone — see StoreContext.signIn and src/lib/seed.ts. */
 
 /* ───────────────────────── admin login ───────────────────────── */
 
 function AdminLogin({ onLogin }: { onLogin: () => void }) {
-  const [username, setUsername] = useState("");
+  const { signIn, configured } = useStore();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === ADMIN_CREDS.username && password === ADMIN_CREDS.password) {
-      onLogin();
-    } else {
-      setError("Invalid credentials. Try admin / fakhri2024");
-    }
+    setBusy(true);
+    setError("");
+    const err = await signIn(email.trim(), password);
+    setBusy(false);
+    if (err) setError(err);
+    else onLogin();
   };
 
   return (
@@ -1987,8 +1974,8 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
         </div>
         <form onSubmit={submit} className="mt-6 space-y-4 rounded-2xl border border-line bg-white p-6">
           <div>
-            <label htmlFor="user" className="text-sm font-semibold text-navy">Username</label>
-            <input id="user" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="mt-1.5 min-h-[52px] w-full rounded-xl border-2 border-line bg-white px-4 text-base outline-none focus:border-navy" />
+            <label htmlFor="user" className="text-sm font-semibold text-navy">Email</label>
+            <input id="user" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="mt-1.5 min-h-[52px] w-full rounded-xl border-2 border-line bg-white px-4 text-base outline-none focus:border-navy" />
           </div>
           <div>
             <label htmlFor="pass" className="text-sm font-semibold text-navy">Password</label>
@@ -2000,8 +1987,8 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
             </div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <Btn type="submit" className="w-full"><Icon name="lock" className="size-4" /> Sign in</Btn>
-          <p className="text-xs text-center text-mute">Demo credentials: admin / fakhri2024</p>
+          <Btn type="submit" disabled={busy} className="w-full"><Icon name="lock" className="size-4" /> {busy ? "Signing in…" : "Sign in"}</Btn>
+          {!configured && <p className="text-xs text-center text-mute">Demo mode (Supabase not connected): admin / fakhri2024</p>}
         </form>
       </div>
     </div>
@@ -2010,20 +1997,19 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 
 /* ───────────────────────── admin dashboard ───────────────────────── */
 
-function AdminDashboard({ onLogout, leads, setLeads, inventory, setInventory, reservations, settings, setSettings, bulkEnquiries, setBulkEnquiries }: {
-  onLogout: () => void; leads: Lead[]; setLeads: (l: Lead[]) => void;
-  inventory: Machine[]; setInventory: (m: Machine[]) => void;
-  reservations: Reservation[]; settings: SiteSettings; setSettings: (s: SiteSettings) => void;
-  bulkEnquiries: BulkEnquiry[]; setBulkEnquiries: (b: BulkEnquiry[]) => void;
-}) {
-  const [tab, setTab] = useState<AdminTab>("leads");
+function AdminDashboard({ onLogout }: { onLogout: () => void }) {
+  const store = useStore();
+  const { leads, machines, reservations, bulkEnquiries, contactMessages, configured, error } = store;
+  const [tab, setTab] = useState<AdminTab>("overview");
   const [editMachine, setEditMachine] = useState<Machine | null>(null);
 
   const tabs: { id: AdminTab; label: string; icon: string; count?: number }[] = [
+    { id: "overview", label: "Overview", icon: "star" },
     { id: "leads", label: "Leads", icon: "inbox", count: leads.filter((l) => l.status === "new").length },
-    { id: "inventory", label: "Inventory", icon: "package", count: inventory.length },
-    { id: "reservations", label: "Reservations", icon: "clock", count: reservations.length },
+    { id: "inventory", label: "Inventory", icon: "package", count: machines.length },
+    { id: "reservations", label: "Reservations", icon: "clock", count: reservations.filter((r) => r.until > Date.now()).length },
     { id: "bulk", label: "Bulk Orders", icon: "users", count: bulkEnquiries.filter((b) => b.status === "new").length },
+    { id: "contact", label: "Messages", icon: "chat", count: contactMessages.filter((c) => c.status === "new").length },
     { id: "settings", label: "Settings", icon: "settings" },
   ];
 
@@ -2053,35 +2039,118 @@ function AdminDashboard({ onLogout, leads, setLeads, inventory, setInventory, re
           ))}
         </nav>
 
+        {!configured && (
+          <div className="mt-4 rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm text-[#9a5f00]">
+            <b>Demo mode.</b> Supabase is not connected, so nothing here is saved and the storefront still shows the sample catalogue. Add <code className="rounded bg-white/60 px-1">VITE_SUPABASE_URL</code> and <code className="rounded bg-white/60 px-1">VITE_SUPABASE_ANON_KEY</code> to start using the live database.
+          </div>
+        )}
+        {error && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <b>Couldn't reach the database.</b> {error}
+          </div>
+        )}
+
         <div className="mt-6">
-          {tab === "leads" && <LeadsTab leads={leads} setLeads={setLeads} />}
-          {tab === "inventory" && <InventoryTab inventory={inventory} setInventory={setInventory} onEdit={setEditMachine} />}
-          {tab === "reservations" && <ReservationsTab reservations={reservations} />}
-          {tab === "bulk" && <BulkEnquiriesTab enquiries={bulkEnquiries} setEnquiries={setBulkEnquiries} />}
-          {tab === "settings" && <SettingsTab settings={settings} setSettings={setSettings} />}
+          {tab === "overview" && <OverviewTab onGo={setTab} />}
+          {tab === "leads" && <LeadsTab />}
+          {tab === "inventory" && <InventoryTab onEdit={setEditMachine} />}
+          {tab === "reservations" && <ReservationsTab />}
+          {tab === "bulk" && <BulkEnquiriesTab />}
+          {tab === "contact" && <ContactTab />}
+          {tab === "settings" && <SettingsTab />}
         </div>
       </div>
 
-      {editMachine && <MachineEditModal machine={editMachine} onClose={() => setEditMachine(null)} onSave={(updated) => { setInventory(inventory.map((m) => m.id === updated.id ? updated : m)); setEditMachine(null); }} />}
+      {editMachine && <MachineEditModal machine={editMachine} onClose={() => setEditMachine(null)} onSave={(updated) => { void store.updateMachine(updated); setEditMachine(null); }} />}
+    </div>
+  );
+}
+
+/* ───────────────────────── overview tab ───────────────────────── */
+
+function StatCard({ label, value, sub, tone = "navy" }: { label: string; value: string | number; sub?: string; tone?: "navy" | "ok" | "accent" }) {
+  const tones = {
+    navy: "bg-navy text-white",
+    ok: "bg-white text-navy ring-1 ring-line",
+    accent: "bg-accent/15 text-navy",
+  }[tone];
+  return (
+    <div className={`rounded-xl p-5 ${tones}`}>
+      <p className={`text-xs font-semibold uppercase tracking-wider ${tone === "navy" ? "text-white/60" : "text-mute"}`}>{label}</p>
+      <p className="mt-2 text-3xl font-extrabold tabular-nums">{value}</p>
+      {sub && <p className={`mt-1 text-xs ${tone === "navy" ? "text-white/60" : "text-mute"}`}>{sub}</p>}
+    </div>
+  );
+}
+
+function OverviewTab({ onGo }: { onGo: (t: AdminTab) => void }) {
+  const store = useStore();
+  const { leads, machines, reservations, bulkEnquiries, contactMessages } = store;
+  const now = Date.now();
+  const available = machines.filter((m) => m.status === "Available").length;
+  const sold = machines.filter((m) => m.status === "Sold").length;
+  const drafts = machines.filter((m) => m.status === "Draft").length;
+  const newLeads = leads.filter((l) => l.status === "new").length;
+  const activeHolds = reservations.filter((r) => r.until > now).length;
+  const newBulk = bulkEnquiries.filter((b) => b.status === "new").length;
+  const newMsgs = contactMessages.filter((c) => c.status === "new").length;
+
+  const recent = leads.slice(0, 5);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="New leads" value={newLeads} sub={`${leads.length} total`} tone="navy" />
+        <StatCard label="Active holds" value={activeHolds} sub={`${reservations.length} total`} />
+        <StatCard label="Bulk enquiries" value={newBulk} sub={`${bulkEnquiries.length} total`} />
+        <StatCard label="New messages" value={newMsgs} sub={`${contactMessages.length} total`} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Available" value={available} sub="shown on the site" tone="ok" />
+        <StatCard label="Sold" value={sold} sub="kept visible, marked sold" tone="ok" />
+        <StatCard label="Drafts" value={drafts} sub="hidden from the site" tone="ok" />
+      </div>
+
+      <div className="rounded-xl border border-line bg-white">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 className="font-bold text-navy">Latest leads</h2>
+          <button onClick={() => onGo("leads")} className="text-sm font-semibold text-[#9a5f00] hover:underline">View all</button>
+        </div>
+        {recent.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-mute">No leads yet. Quiz submissions will appear here.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {recent.map((l) => (
+              <li key={l.id} className="flex items-center justify-between gap-4 px-5 py-3.5">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-navy">{l.name}</p>
+                  <p className="truncate text-sm text-mute">{l.use || "—"} · {l.budget || "budget TBC"}</p>
+                </div>
+                <span className="shrink-0 text-xs text-mute">{new Date(l.timestamp).toLocaleDateString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
 
 /* ───────────────────────── leads tab ───────────────────────── */
 
-function LeadsTab({ leads, setLeads }: { leads: Lead[]; setLeads: (l: Lead[]) => void }) {
+function LeadsTab() {
+  const { leads, setLeadStatus, deleteLead: deleteLeadRow } = useStore();
   const [filter, setFilter] = useState<"all" | LeadStatus>("all");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
 
   const filtered = leads.filter((l) => filter === "all" || l.status === filter);
   const sorted = [...filtered].sort((a, b) => sort === "newest" ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
 
-  const updateStatus = (id: string, status: LeadStatus) => {
-    setLeads(leads.map((l) => l.id === id ? { ...l, status } : l));
-  };
+  const updateStatus = (id: string, status: LeadStatus) => { void setLeadStatus(id, status); };
 
   const deleteLead = (id: string) => {
-    if (confirm("Delete this lead?")) setLeads(leads.filter((l) => l.id !== id));
+    if (confirm("Delete this lead?")) void deleteLeadRow(id);
   };
 
   const exportCSV = () => {
@@ -2168,44 +2237,42 @@ function LeadsTab({ leads, setLeads }: { leads: Lead[]; setLeads: (l: Lead[]) =>
 
 /* ───────────────────────── inventory tab ───────────────────────── */
 
-function InventoryTab({ inventory, setInventory, onEdit }: { inventory: Machine[]; setInventory: (m: Machine[]) => void; onEdit: (m: Machine) => void }) {
-  const [filter, setFilter] = useState<"all" | "available" | "sold">("all");
+function InventoryTab({ onEdit }: { onEdit: (m: Machine) => void }) {
+  const { machines, updateMachine, deleteMachine: deleteMachineRow, createMachine } = useStore();
+  const [filter, setFilter] = useState<"all" | "available" | "sold" | "draft">("all");
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const available = inventory.filter((m) => unitOf(m.id).status === "Available").length;
-  const filtered = inventory.filter((m) => {
-    const u = unitOf(m.id);
-    return filter === "all" || (filter === "available" && u.status === "Available") || (filter === "sold" && u.status === "Sold");
+  const available = machines.filter((m) => m.status === "Available").length;
+  const filtered = machines.filter((m) => {
+    if (filter === "all") return true;
+    if (filter === "available") return m.status === "Available";
+    if (filter === "sold") return m.status === "Sold";
+    return m.status === "Draft";
   });
 
-  const toggleAvailability = (id: string) => {
-    const u = unitOf(id);
-    UNITS[id] = { ...u, status: u.status === "Available" ? "Sold" : "Available" };
-    setInventory([...inventory]);
+  const toggleAvailability = (m: Machine) => {
+    void updateMachine({ ...m, status: m.status === "Available" ? "Sold" : "Available" });
   };
 
   const deleteMachine = (id: string) => {
-    if (confirm("Delete this machine from inventory?")) {
-      setInventory(inventory.filter((m) => m.id !== id));
-      delete UNITS[id];
-    }
+    if (confirm("Delete this machine from inventory?")) void deleteMachineRow(id);
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex gap-2">
-          <button onClick={() => setFilter("all")} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === "all" ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>All ({inventory.length})</button>
+          <button onClick={() => setFilter("all")} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === "all" ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>All ({machines.length})</button>
           <button onClick={() => setFilter("available")} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === "available" ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>Available ({available})</button>
-          <button onClick={() => setFilter("sold")} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === "sold" ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>Sold ({inventory.length - available})</button>
+          <button onClick={() => setFilter("sold")} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === "sold" ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>Sold ({machines.filter((m) => m.status === "Sold").length})</button>
+          <button onClick={() => setFilter("draft")} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === "draft" ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>Draft ({machines.filter((m) => m.status === "Draft").length})</button>
         </div>
         <Btn onClick={() => setShowAddModal(true)} className="!min-h-10"><Icon name="plus" className="size-4" /> Add machine</Btn>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filtered.map((m) => {
-          const u = unitOf(m.id);
-          const avail = u.status === "Available";
+          const avail = m.status === "Available";
           return (
             <div key={m.id} className={`rounded-xl border p-4 ${avail ? "border-line bg-white" : "border-slate-200 bg-slate-50"}`}>
               <div className="flex items-start justify-between gap-2">
@@ -2213,7 +2280,7 @@ function InventoryTab({ inventory, setInventory, onEdit }: { inventory: Machine[
                   <h3 className="font-semibold text-navy">{m.name}</h3>
                   <p className="text-xs text-mute">{m.year} · {m.cpu}</p>
                 </div>
-                <Badge status={u.status} />
+                <Badge status={m.status} />
               </div>
               <dl className="mt-3 space-y-1 text-sm">
                 <div className="flex justify-between"><dt className="text-mute">RAM</dt><dd className="font-medium">{m.ram}GB</dd></div>
@@ -2222,7 +2289,7 @@ function InventoryTab({ inventory, setInventory, onEdit }: { inventory: Machine[
                 <div className="flex justify-between"><dt className="text-mute">Price</dt><dd className="font-medium">{fmtRange(m.low, m.high)}</dd></div>
               </dl>
               <div className="mt-4 flex gap-2">
-                <button onClick={() => toggleAvailability(m.id)} className={`flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition ${avail ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100" : "border-ok/30 bg-ok/10 text-ok hover:bg-ok/20"}`}>{avail ? "Mark sold" : "Mark available"}</button>
+                <button onClick={() => toggleAvailability(m)} className={`flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition ${avail ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100" : "border-ok/30 bg-ok/10 text-ok hover:bg-ok/20"}`}>{avail ? "Mark sold" : "Mark available"}</button>
                 <button onClick={() => onEdit(m)} className="flex size-10 items-center justify-center rounded-lg border border-line bg-white text-navy hover:bg-navy/5" aria-label="Edit"><Icon name="edit" className="size-4" /></button>
                 <button onClick={() => deleteMachine(m.id)} className="flex size-10 items-center justify-center rounded-lg border border-line bg-white text-red-600 hover:bg-red-50" aria-label="Delete"><Icon name="trash" className="size-4" /></button>
               </div>
@@ -2235,10 +2302,10 @@ function InventoryTab({ inventory, setInventory, onEdit }: { inventory: Machine[
         <MachineAddModal
           onClose={() => setShowAddModal(false)}
           onSave={(newMachine) => {
-            setInventory([...inventory, newMachine]);
+            void createMachine(newMachine);
             setShowAddModal(false);
           }}
-          existingInventory={inventory}
+          existingInventory={machines}
         />
       )}
     </div>
@@ -2247,7 +2314,8 @@ function InventoryTab({ inventory, setInventory, onEdit }: { inventory: Machine[
 
 /* ───────────────────────── reservations tab ───────────────────────── */
 
-function ReservationsTab({ reservations }: { reservations: Reservation[] }) {
+function ReservationsTab() {
+  const { reservations, machines, releaseHold } = useStore();
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
 
@@ -2261,7 +2329,8 @@ function ReservationsTab({ reservations }: { reservations: Reservation[] }) {
           <h2 className="mb-3 text-lg font-bold text-navy">Active reservations ({active.length})</h2>
           <div className="space-y-3">
             {active.map((r) => {
-              const m = CATALOG.find((x) => x.id === r.id)!;
+              const m = machines.find((x) => x.id === r.id);
+              if (!m) return null;
               const left = r.until - now;
               const hh = Math.floor(left / 3600000), mm = Math.floor((left % 3600000) / 60000);
               return (
@@ -2288,6 +2357,7 @@ function ReservationsTab({ reservations }: { reservations: Reservation[] }) {
                       </ul>
                     </div>
                   )}
+                  <button onClick={() => { if (confirm(`Release the hold on ${m.name}?`)) void releaseHold(r.id); }} className="mt-3 text-sm font-semibold text-red-600 hover:underline">Release hold</button>
                 </div>
               );
             })}
@@ -2300,7 +2370,8 @@ function ReservationsTab({ reservations }: { reservations: Reservation[] }) {
           <h2 className="mb-3 text-lg font-bold text-slate-600">Expired reservations ({expired.length})</h2>
           <div className="space-y-2">
             {expired.map((r) => {
-              const m = CATALOG.find((x) => x.id === r.id)!;
+              const m = machines.find((x) => x.id === r.id);
+              if (!m) return null;
               return (
                 <div key={r.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 opacity-60">
                   <div>
@@ -2326,19 +2397,18 @@ function ReservationsTab({ reservations }: { reservations: Reservation[] }) {
 
 /* ───────────────────────── bulk enquiries tab ───────────────────────── */
 
-function BulkEnquiriesTab({ enquiries, setEnquiries }: { enquiries: BulkEnquiry[]; setEnquiries: (e: BulkEnquiry[]) => void }) {
-  const [filter, setFilter] = useState<"all" | "new" | "contacted" | "closed">("all");
+function BulkEnquiriesTab() {
+  const { bulkEnquiries: enquiries, setBulkStatus, deleteBulk } = useStore();
+  const [filter, setFilter] = useState<"all" | LeadStatus>("all");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
 
   const filtered = enquiries.filter((e) => filter === "all" || e.status === filter);
   const sorted = [...filtered].sort((a, b) => sort === "newest" ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
 
-  const updateStatus = (id: string, status: "new" | "contacted" | "closed") => {
-    setEnquiries(enquiries.map((e) => e.id === id ? { ...e, status } : e));
-  };
+  const updateStatus = (id: string, status: LeadStatus) => { void setBulkStatus(id, status); };
 
   const deleteEnquiry = (id: string) => {
-    if (confirm("Delete this bulk enquiry?")) setEnquiries(enquiries.filter((e) => e.id !== id));
+    if (confirm("Delete this bulk enquiry?")) void deleteBulk(id);
   };
 
   const exportCSV = () => {
@@ -2443,14 +2513,24 @@ function BulkEnquiriesTab({ enquiries, setEnquiries }: { enquiries: BulkEnquiry[
 
 /* ───────────────────────── settings tab ───────────────────────── */
 
-function SettingsTab({ settings, setSettings }: { settings: SiteSettings; setSettings: (s: SiteSettings) => void }) {
+function SettingsTab() {
+  const { settings, saveSettings } = useStore();
   const [form, setForm] = useState(settings);
   const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const save = () => {
-    setSettings(form);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  // Keep the form in step with settings once the real row arrives from Supabase.
+  useEffect(() => setForm(settings), [settings]);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await saveSettings(form);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -2497,9 +2577,63 @@ function SettingsTab({ settings, setSettings }: { settings: SiteSettings; setSet
       </div>
 
       <div className="flex items-center gap-3">
-        <Btn onClick={save} className="min-w-[140px]"><Icon name="check" className="size-4" /> {saved ? "Saved!" : "Save changes"}</Btn>
+        <Btn onClick={save} disabled={busy} className="min-w-[140px]"><Icon name="check" className="size-4" /> {busy ? "Saving…" : saved ? "Saved!" : "Save changes"}</Btn>
         {saved && <span className="text-sm text-ok">Settings updated successfully</span>}
       </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── contact messages tab ───────────────────────── */
+
+function ContactTab() {
+  const { contactMessages: messages, setContactStatus, deleteContact } = useStore();
+  const [filter, setFilter] = useState<"all" | LeadStatus>("all");
+
+  const filtered = messages.filter((m) => filter === "all" || m.status === filter);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {(["all", "new", "contacted", "closed"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} className={`min-h-10 rounded-lg px-4 text-sm font-medium transition ${filter === f ? "bg-navy text-white" : "border border-line bg-white text-slate-700 hover:border-navy/40"}`}>
+            {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)} {f !== "all" && `(${messages.filter((m) => m.status === f).length})`}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
+          <p className="font-semibold text-navy">No messages yet</p>
+          <p className="mt-1 text-sm text-slate-600">Contact form submissions will appear here</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((m) => (
+            <div key={m.id} className="rounded-xl border border-line bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-navy">{m.name}</h3>
+                  <p className="text-sm text-mute">
+                    <a href={waLink(`Hi ${m.name}, this is Fakhri Computers replying to your message.`)} target="_blank" rel="noreferrer" className="text-[#1fa855] hover:underline">{m.phone}</a>
+                    {m.email && <> · <a href={`mailto:${m.email}`} className="hover:underline">{m.email}</a></>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select value={m.status} onChange={(e) => void setContactStatus(m.id, e.target.value as LeadStatus)} className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${m.status === "new" ? "border-accent/30 bg-accent/10 text-[#9a5f00]" : m.status === "contacted" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                  <button onClick={() => { if (confirm("Delete this message?")) void deleteContact(m.id); }} className="flex size-8 items-center justify-center rounded-lg text-red-600 hover:bg-red-50" aria-label="Delete"><Icon name="trash" className="size-4" /></button>
+                </div>
+              </div>
+              {m.message && <p className="mt-3 whitespace-pre-wrap rounded-lg bg-paper p-3 text-sm text-slate-700">{m.message}</p>}
+              <p className="mt-2 text-xs text-mute">{new Date(m.timestamp).toLocaleString()}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2596,6 +2730,7 @@ function MachineAddModal({ onClose, onSave, existingInventory }: { onClose: () =
     const nums = existingIds.map(id => parseInt(id.substring(1))).filter(n => !isNaN(n));
     const maxNum = nums.length ? Math.max(...nums) : 0;
     const newId = `m${maxNum + 1}`;
+    const maxPos = existingInventory.reduce((p, m) => Math.max(p, m.position ?? 0), 0);
 
     const newMachine: Machine = {
       id: newId,
@@ -2615,9 +2750,13 @@ function MachineAddModal({ onClose, onSave, existingInventory }: { onClose: () =
       high: form.high,
       grade: form.grade,
       hue: form.hue,
+      status: form.status,
+      cond: form.cond,
+      listed: form.status !== "Draft",
+      imageUrl: null,
+      position: maxPos + 1,
     };
 
-    UNITS[newId] = { status: form.status, cond: form.cond };
     onSave(newMachine);
   };
 
@@ -2801,28 +2940,16 @@ function MachineAddModal({ onClose, onSave, existingInventory }: { onClose: () =
 /* ───────────────────────── app ───────────────────────── */
 
 export default function App() {
+  const { machines, isAdmin, submitLead, submitBulk, holdMachine, releaseHold, signOut, loading } = useStore();
   const [screen, setScreen] = useState<Screen>("home");
   const [answers, setAnswersState] = useState<Answers>(EMPTY);
   const [step, setStep] = useState(0);
   const [cat, setCat] = useState<CatKey>("accessories");
   const [modalId, setModalId] = useState<string | null>(null);
-  const [unitId, setUnitId] = useState("m8");
+  const [unitId, setUnitId] = useState(machines[0]?.id ?? "m8");
   const [lapF, setLapF] = useState<LapFilters>(LAP0);
   const [reserveOpts, setReserveOpts] = useState<{ likeNew: boolean; addons: string[] } | null>(null);
-  const [reservation, setReservation] = useState<Reservation | null>(null);
-
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [adminLeads, setAdminLeads] = useState<Lead[]>(SAMPLE_LEADS);
-  const [adminInventory, setAdminInventory] = useState<Machine[]>(CATALOG);
-  const [adminReservations, setAdminReservations] = useState<Reservation[]>([]);
-  const [adminBulkEnquiries, setAdminBulkEnquiries] = useState<BulkEnquiry[]>([]);
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>({
-    waNumber: WA_NUMBER,
-    waDisplay: WA_DISPLAY,
-    address: "Shop 12, Sample Plaza, Al Rigga Road, Deira, Dubai",
-    hours: "Sat – Thu: 10:00 – 21:00\nFriday: 16:00 – 21:00",
-    mode: "sample",
-  });
+  const [myReservation, setMyReservation] = useState<Reservation | null>(null);
 
   const setAnswers = (f: (a: Answers) => Answers) => setAnswersState(f);
   const go = (s: Screen) => setScreen(s);
@@ -2837,77 +2964,68 @@ export default function App() {
 
   useEffect(() => { window.scrollTo(0, 0); }, [screen, unitId]);
 
+  // Already signed in? Skip the login screen.
   useEffect(() => {
-    if (reservation && !adminReservations.find((r) => r.id === reservation.id)) {
-      setAdminReservations([...adminReservations, reservation]);
-    }
-  }, [reservation]);
+    if (isAdmin && screen === "admin-login") setScreen("admin");
+  }, [isAdmin, screen]);
 
   const finishQuiz = () => {
-    const newLead: Lead = {
-      id: `L${String(adminLeads.length + 1).padStart(3, "0")}`,
-      name: answers.name,
-      phone: answers.phone,
+    // Fire and forget: the lead lands in Supabase; the visitor still sees their
+    // result immediately whether or not the write succeeds.
+    void submitLead({
+      name: answers.name.trim(),
+      phone: answers.phone.trim(),
       use: lbl(USES, answers.use)?.label || "",
       budget: lbl(BUDGETS, answers.budget)?.label || "",
       port: answers.port || "",
       cond: answers.cond || "",
       musts: answers.musts,
-      timestamp: Date.now(),
-      status: "new",
-    };
-    setAdminLeads([...adminLeads, newLead]);
+    }).catch((e) => console.error("Could not save lead", e));
     go("result");
   };
 
-  const unit = CATALOG.find((m) => m.id === unitId)!;
+  const unit = machines.find((m) => m.id === unitId) ?? machines[0];
+  const unitName = unit?.name ?? "laptop";
+  const isHeld = (id: string) => (machines.find((m) => m.id === id)?.heldUntil ?? 0) > Date.now();
   const waText = screen === "result" || screen === "confirm" ? waSummary(answers, buildProfile(answers))
     : screen === "quiz" ? "Hi Fakhri Computers, I'm filling in the laptop quiz and have a question."
-    : screen === "detail" ? `Hi Fakhri Computers, I'm looking at the ${unit.name} (sample listing). Is it still available?`
+    : screen === "detail" ? `Hi Fakhri Computers, I'm looking at the ${unitName}. Is it still available?`
     : screen === "monitors" ? "Hi Fakhri Computers, I'm looking for a monitor. Can you help?"
     : screen === "bulk" ? "Hi Fakhri Computers, I'd like a quote for an office order."
     : "Hi Fakhri Computers, I'm looking for a laptop. Can you help?";
-  const modalMachine = modalId ? CATALOG.find((m) => m.id === modalId) : null;
+  const modalMachine = modalId ? machines.find((m) => m.id === modalId) : null;
 
-  if (screen === "admin-login") {
-    return <AdminLogin onLogin={() => { setIsAdmin(true); go("admin"); }} />;
+  if (screen === "admin-login" || (screen === "admin" && !isAdmin)) {
+    return <AdminLogin onLogin={() => go("admin")} />;
   }
 
-  if (screen === "admin" && isAdmin) {
-    return (
-      <AdminDashboard
-        onLogout={() => { setIsAdmin(false); go("home"); }}
-        leads={adminLeads}
-        setLeads={setAdminLeads}
-        inventory={adminInventory}
-        setInventory={setAdminInventory}
-        reservations={adminReservations}
-        settings={siteSettings}
-        setSettings={setSiteSettings}
-        bulkEnquiries={adminBulkEnquiries}
-        setBulkEnquiries={setAdminBulkEnquiries}
-      />
-    );
+  if (screen === "admin") {
+    return <AdminDashboard onLogout={() => { void signOut(); go("home"); }} />;
   }
 
   return (
     <div className="min-h-screen bg-paper font-sans text-ink">
       <Header go={startQuiz} />
       <main className="pb-24">
+        {loading && screen === "home" && (
+          <div className="mx-auto max-w-6xl px-5 py-8 md:px-8" aria-busy="true" aria-live="polite">
+            <p className="text-sm text-mute">Loading the latest stock…</p>
+          </div>
+        )}
         {screen === "home" && <Home go={startQuiz} openCat={openCat} openMachine={(id) => openUnit(id)} />}
         {screen === "category" && <CategoryPage cat={cat} go={startQuiz} openCat={openCat} openMachine={(id) => openUnit(id)} />}
         {screen === "quiz" && <Quiz answers={answers} setAnswers={setAnswers} step={step} setStep={setStep} go={go} finish={finishQuiz} />}
         {screen === "result" && <Result answers={answers} go={startQuiz} openMachine={(id) => setModalId(id)} editAnswers={edit} onSend={() => go("confirm")} />}
         {screen === "confirm" && <Confirm answers={answers} go={startQuiz} editAnswers={edit} />}
         {screen === "recent" && <RecentPage f={lapF} setF={setLapF} openUnit={openUnit} go={startQuiz} />}
-        {screen === "detail" && <LaptopDetail key={unit.id} m={unit} held={reservation?.id === unit.id} onBack={() => go("recent")} onReserve={setReserveOpts} onViewHeld={() => go("reserved")} go={startQuiz} />}
-        {screen === "reserved" && reservation && <ReservedPage r={reservation} go={startQuiz} openUnit={openUnit} release={() => { setReservation(null); go("recent"); }} />}
+        {screen === "detail" && unit && <LaptopDetail key={unit.id} m={unit} held={isHeld(unit.id)} onBack={() => go("recent")} onReserve={setReserveOpts} onViewHeld={() => go("reserved")} go={startQuiz} />}
+        {screen === "reserved" && myReservation && <ReservedPage r={myReservation} go={startQuiz} openUnit={openUnit} release={() => { void releaseHold(myReservation.id); setMyReservation(null); go("recent"); }} />}
         {screen === "monitors" && <MonitorsPage />}
         {screen === "how" && <HowPage go={startQuiz} />}
         {screen === "warranty" && <WarrantyPage go={startQuiz} />}
         {screen === "reviews" && <ReviewsPage go={startQuiz} />}
         {screen === "about" && <AboutPage go={startQuiz} />}
-        {screen === "bulk" && <BulkPage />}
+        {screen === "bulk" && <BulkPage onSubmit={(b) => { void submitBulk(b).catch((e) => console.error("Could not save bulk enquiry", e)); }} />}
         {screen === "contact" && <ContactPage />}
       </main>
       <Footer go={startQuiz} />
@@ -2917,12 +3035,12 @@ export default function App() {
         <span className="hidden text-[15px] sm:inline">WhatsApp us</span>
       </a>
 
-      <button onClick={() => go("admin-login")} className="fixed bottom-4 left-4 z-40 flex size-12 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg shadow-black/25 transition hover:bg-slate-700 active:scale-95 md:bottom-6 md:left-6" aria-label="Admin login">
+      <button onClick={() => go(isAdmin ? "admin" : "admin-login")} className="fixed bottom-4 left-4 z-40 flex size-12 items-center justify-center rounded-full bg-slate-800 text-white shadow-lg shadow-black/25 transition hover:bg-slate-700 active:scale-95 md:bottom-6 md:left-6" aria-label="Admin dashboard">
         <Icon name="lock" className="size-5" />
       </button>
 
-      {modalMachine && <MachineDetail m={modalMachine} answers={answers} onClose={() => setModalId(null)} />}
-      {reserveOpts && <ReserveModal m={unit} opts={reserveOpts} onClose={() => setReserveOpts(null)} onDone={(r) => { setReservation(r); setReserveOpts(null); go("reserved"); }} />}
+      {modalMachine && <MachineDetail m={modalMachine} status={modalMachine.status === "Draft" ? undefined : modalMachine.status} answers={answers} onClose={() => setModalId(null)} />}
+      {reserveOpts && unit && <ReserveModal m={unit} opts={reserveOpts} onClose={() => setReserveOpts(null)} onDone={(r) => { void holdMachine(r).catch((e) => console.error("Could not save reservation", e)); setMyReservation(r); setReserveOpts(null); go("reserved"); }} />}
     </div>
   );
 }
