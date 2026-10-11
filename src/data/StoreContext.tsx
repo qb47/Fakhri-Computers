@@ -203,15 +203,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [isAdmin, loadAdminData]);
 
   const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
-    // Fallback mode (no Supabase yet): keep the old demo login so the dashboard
-    // is still explorable. This path disappears the moment env vars are set.
+    // No hardcoded fallback credentials: sign-in is Supabase Auth only.
     if (!isSupabaseConfigured || !supabase) {
-      if (email === "admin" && password === "fakhri2024") {
-        setIsAdmin(true);
-        setAdminEmail("demo");
-        return null;
-      }
-      return "Invalid credentials.";
+      return "Sign-in is unavailable: the site is not connected to its database.";
     }
     const { error: err } = await supabase.auth.signInWithPassword({ email, password });
     if (err) return err.message;

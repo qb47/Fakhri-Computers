@@ -1988,7 +1988,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Btn type="submit" disabled={busy} className="w-full"><Icon name="lock" className="size-4" /> {busy ? "Signing in…" : "Sign in"}</Btn>
-          {!configured && <p className="text-xs text-center text-mute">Demo mode (Supabase not connected): admin / fakhri2024</p>}
+          {!configured && <p className="text-xs text-center text-mute">The site is not connected to its database yet, so sign-in is unavailable.</p>}
         </form>
       </div>
     </div>
